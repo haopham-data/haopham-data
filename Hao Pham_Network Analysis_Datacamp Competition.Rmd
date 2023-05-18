@@ -1,0 +1,356 @@
+---
+title: "Datacamp Competition"
+author: "Hao Pham"
+date: "2023-05-18"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Reference: https://app.datacamp.com/learn/competitions/employee-network-analysis
+
+# Load packages
+library(tidyverse)
+library(igraph)
+library(visNetwork)
+library(readr)
+library(lubridate)
+library(gridExtra)
+
+# Load data
+employees <- datacamp_workspace_export_2022_10_08_15_28_58
+messages <- datacamp_workspace_export_2022_10_08_15_34_16
+
+# Check dimensions of datasets
+dim(employees)
+dim(messages)
+
+# Number of variables and observations in employees dataset
+n_vars_employees <- ncol(employees)
+n_obs_employees <- nrow(employees)
+cat("Employees dataset has", n_vars_employees, "variables and", n_obs_employees, "observations.\n")
+
+# Number of variables and observations in messages dataset
+n_vars_messages <- ncol(messages)
+n_obs_messages <- nrow(messages)
+cat("Messages dataset has", n_vars_messages, "variables and", n_obs_messages, "observations.\n")
+
+# Number of different departments in employees data
+n_departments <- length(unique(employees$department))
+cat("There are", n_departments, "different departments in the employees data.\n")
+
+# Number of different senders and receivers in messages data
+n_senders <- length(unique(messages$sender))
+n_receivers <- length(unique(messages$receiver))
+cat("There are", n_senders, "unique senders and", n_receivers, "unique receivers in the messages data.\n")
+
+# Number of employees per department
+employees_per_department <- employees %>% count(department)
+employees_per_department
+
+# Summary statistics of age in employees data
+summary_age <- summary(employees$age)
+summary_age
+
+# Summary statistics of message length in messages data
+summary_message_length <- summary(messages$message_length)
+summary_message_length
+
+# Employees who send more messages
+senders_most_messages <- messages %>% count(sender, sort = TRUE)
+senders_most_messages
+
+# Employees who receive more messages
+receivers_most_messages <- messages %>% count(receiver, sort = TRUE)
+receivers_most_messages
+
+# Joining messages and employees data
+df <- left_join(messages, employees, by = c("sender" = "id"))
+
+# Barplot representing number of employees per department
+bp <- employees %>% count(department)
+bp
+
+ggplot(bp, aes(x = department, y = n, fill = department)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+# Barplot representing number of employees per location
+bp1 <- employees %>% count(location)
+bp1
+
+ggplot(bp1, aes(x = location, y = n, fill = location)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust = 1))
+
+# Most active department
+most_active_department <- df %>% count(department, sort = TRUE)
+most_active_department
+
+# Most active employee
+most_active_employee <- df %>% count(employeeID, sort = TRUE)
+most_active_employee
+
+# Employee with the most connections
+most_connections <- df %>%
+  filter(sender == 605) %>%
+  count(receiver)
+most_connections
+
+# Least active employees
+least_active_employees <- df %>% count(employeeID) %>% arrange(n)
+least_active_employees
+
+# Number of employees in each location
+employees_per_location <- df %>%
+  select(employeeID, department) %>%
+  group_by(employeeID, department)
+
+#Average age in November
+avg_age <- tidy %>%
+  filter(month == "Nov") %>%
+  summarize(average_age = mean(age))
+
+#Marketing group of employees in-depth
+mkt <- employees %>%
+  filter(department == "Marketing")
+
+mkt_location_count <- mkt %>%
+  count(location)
+
+mean_age <- employees %>%
+  summarize(average_age = mean(age))
+  
+#Group by month and location to calculate average age
+clean <- tidy %>%
+  group_by(month, location) %>%
+  summarize(average_age = mean(age))
+
+
+#Plot boxplots of average age by month and location
+plot_function <- function(data) {
+  ggplot(data, aes(x = as.factor(month), y = average_age,
+                   group = as.factor(month), fill = location)) +
+    geom_boxplot() +
+    facet_wrap(~location) +
+    theme_bw() +
+    theme(legend.position = "top")
+}
+
+plot_function(data = clean)
+
+#Count the activity of each employee per month
+tidy1 <- tidy %>%
+  count(month)
+
+ggplot(tidy1, aes(x = month, y = n, fill = month)) +
+  geom_col(stat = "identity", position = "dodge")
+
+#Visualize relationship between age and department, and message length and department
+p1 <- ggplot(dff, aes(x = age, y = department)) +
+  geom_boxplot()
+
+p2 <- ggplot(dff, aes(x = message_length, y = department)) +
+  geom_boxplot()
+
+grid.arrange(p1, p2)
+
+#Scatter plot of age and department
+ggplot(data = df, aes(x = department, y = age)) +
+  geom_point()
+
+#Fit a linear mode
+dff_lm <- lm(message_length ~ age + department + location, data = dff)
+summary(dff_lm)
+
+#Creating an edgelist for the network graph
+d1 <- df %>% select(sender, receiver)
+edgelist <- as.matrix(d1)
+edgelist
+
+#Create a network graph using igraph
+network <- graph.edgelist(edgelist, directed = TRUE)
+network
+
+#Managing data for creating an igraph object
+messages1 <- messages %>% select(sender, receiver)
+B <- as.data.frame(table(messages1))
+B1 <- subset(B, Freq > 0)
+
+#Exploring igraph data
+## View edge
+E(g)
+
+## View vertex
+V(g)
+
+## View attributes of first five vertices in a dataframe
+V(g)[1:5]
+
+## View edge attributes in a dataframe
+E(g)[1:5]
+
+## Check attributes for "Unknown" values
+V(g)$name
+V(g)$department
+V(g)$location
+V(g)$age
+
+## V(g)$vertice[V(Stucont)$vertice=='Unknown'] <- NA
+
+
+#==================================================================#
+#===================== Measuring Centrality =======================#
+#==================================================================#
+
+# 1. Degree centrality
+g_deg <- degree(g, mode = "all")
+g_in_deg <- degree(g, mode = "in")
+g_out_deg <- degree(g, mode = "out")
+V(g)$degree <- g_deg
+V(g)$in_degree <- g_in_deg
+V(g)$out_degree <- g_out_deg
+max_degree <- which.max(g_deg)
+max_in_degree <- which.max(g_in_deg)
+max_out_degree <- which.max(g_out_deg)
+
+# 2. Eigenvector centrality
+g_eig <- evcent(g)$vector
+V(g)$eigenvector <- g_eig
+max_eigenvector <- which.max(g_eig)
+
+# 3. Betweenness centrality
+g_bw <- betweenness(g, directed = TRUE)
+V(g)$betweenness <- g_bw
+max_betweenness <- which.max(g_bw)
+
+# Convert to data frame to view the data
+df <- as_long_data_frame(g)
+
+#==================================================================#
+#================== Measuring Network Structure ===================#
+#==================================================================#
+
+# 1. Network Density
+global_density <- edge_density(g)
+marketing_density <- edge_density(induced_subgraph(g, V(g)[department == "Marketing"]))
+sales_density <- edge_density(induced_subgraph(g, V(g)[department == "Sales"]))
+admin_density <- edge_density(induced_subgraph(g, V(g)[department == "Admin"]))
+it_density <- edge_density(induced_subgraph(g, V(g)[department == "IT"]))
+operations_density <- edge_density(induced_subgraph(g, V(g)[department == "Operations"]))
+engineering_density <- edge_density(induced_subgraph(g, V(g)[department == "Engineering"]))
+
+# 2. Assortativity
+values <- as.numeric(factor(V(g)$age))
+observed_assortativity <- assortativity_nominal(g, types = values)
+assortativity_results <- vector('list', 1000)
+for (i in 1:1000) {
+  assortativity_results[[i]] <- assortativity_nominal(g, sample(values))
+}
+
+#==================================================================#
+#===================== Network Visualization ======================#
+#==================================================================#
+
+# Plotting a network with the degree centrality
+plot(g)
+plot(Admin)
+plot(Operations)
+plot(IT)
+plot(Marketing)
+plot(Sales)
+plot(Engineering)
+
+#==================================================================#
+#===================== Network Analysis ===========================#
+#==================================================================#
+
+# Introduction
+# Create an igraph graph object using the df_edges dataframe
+df_edges <- messages
+igrapgh <- graph_from_data_frame(df_edges, directed = TRUE)
+print(igrapgh, e = TRUE, v = TRUE)
+print(V(igrapgh))
+print(gorder(igrapgh))
+print(E(igrapgh))
+print(gsize(igrapgh))
+print(is.directed(igrapgh))
+
+
+# Function to calculate degree
+calculate_degree <- function(edges, node_column, degree_column) {
+  edges %>%
+    group_by(across({{ node_column }})) %>%
+    summarise(weight = n()) %>%
+    ungroup() %>%
+    rename(employee = {{ node_column }}, degree = weight) %>%
+    inner_join(df_edges_nodes_all, by = c("employee" = "label")) %>%
+    inner_join(employees, by = c("employee" = "id")) %>%
+    select(department, location, age, degree) %>%
+    arrange(desc(degree)) %>%
+    head(10)
+}
+
+# Calculate in-degree
+df_edges_in_deg_data <- calculate_degree(df_edges, receiver, in_degree)
+
+# Calculate out-degree
+df_edges_out_deg_data <- calculate_degree(df_edges, sender, out_degree)
+
+# Print the top 10 employees with the highest in-degree
+print(df_edges_in_deg_data)
+
+# Print the top 10 employees with the highest out-degree
+print(df_edges_out_deg_data)
+
+# Filter the edges with message_length as the weight
+df_edges_weighted <- df_edges %>%
+  inner_join(employees, by = c("sender" = "id")) %>%
+  select(sender, receiver, message_length)
+
+# Create an igraph object
+igrapgh_weighted <- graph_from_data_frame(df_edges_weighted, directed = TRUE)
+
+# Print the igraph object
+print(igrapgh_weighted, e = TRUE, v = TRUE)
+
+# Plot the graph with top 10 edges by message length
+top10_df_edges_weighted <- df_edges_weighted %>%
+  arrange(message_length) %>%
+  tail(10)
+
+igrapgh_top10_df_edges_weighted <- graph_from_data_frame(top10_df_edges_weighted, directed = TRUE)
+
+E(igrapgh_top10_df_edges_weighted)$width <- E(igrapgh_top10_df_edges_weighted)$message_length
+
+plot(
+  igrapgh_top10_df_edges_weighted,
+  layout = layout.kamada.kawai,
+  edge.arrow.size = 0.2,
+  edge.color = "#CB4335",
+  vertex.color = "#F8C471",
+  vertex.label.color = "#17202A",
+  vertex.label.cex = 1,
+  edge.label = E(igrapgh_top10_df_edges_weighted)$message_length,
+  edge.width = 1
+)
+
+# Plot the graph with top 10 edges by age
+top10_df_edges_weighted <- df_edges_weighted %>%
+  arrange(age) %>%
+  tail(10)
+
+igrapgh_top10_df_edges_weighted <- graph_from_data_frame(top10_df_edges_weighted, directed = TRUE)
+
+E(igrapgh_top10_df_edges_weighted)$width <- E(igrapgh_top10_df_edges_weighted)$age
+
+plot(
+  igrapgh_top10_df_edges_weighted,
+  layout = layout.kamada.kawai,
+  edge.arrow.size = 0.2,
+  edge.color = "#CB4335",
+  vertex.color = "#F8
+
